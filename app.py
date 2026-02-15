@@ -97,7 +97,116 @@ def delete_user(user_id):
     # Rebuild the users list, excluding the user with the specified ID
     users = [user for user in users if user['id'] != user_id]
     return '', 204  # 204 is the HTTP status code for 'No Content', indicating the deletion was successful
+tasks = [
+    {"id": 1, "title": "Learn REST", "description": "Study REST principles", "user_id": 1, "completed": True},
+    {"id": 2, "title": "Build API", "description": "Complete the assignment", "user_id": 2, "completed": False},
+]
 
+# Get all tasks
+@app.route('/tasks', methods=['GET'])
+def get_tasks():
+    return jsonify(tasks), 200
+
+# Get a single task by ID
+@app.route('/tasks/<int:task_id>', methods=['GET'])
+def get_task(task_id):
+    task = next((t for t in tasks if t['id'] == task_id), None)
+    if task is None:
+        abort(404)
+    return jsonify(task), 200
+
+# Create a new task
+@app.route('/tasks', methods=['POST'])
+def create_task():
+    # Validate JSON body
+    if not request.json:
+        abort(400)
+
+    # Required fields: title and user_id
+    if 'title' not in request.json or 'user_id' not in request.json:
+        abort(400)
+
+    title = request.json['title']
+    user_id = request.json['user_id']
+    description = request.json.get('description', '')
+    completed = request.json.get('completed', False)
+
+    # Basic type checks (good practice for 400 errors on bad input)
+    if not isinstance(title, str):
+        abort(400)
+    if not isinstance(user_id, int):
+        abort(400)
+    if not isinstance(description, str):
+        abort(400)
+    if not isinstance(completed, bool):
+        abort(400)
+
+    # Validate that the referenced user exists
+    if not any(u['id'] == user_id for u in users):
+        abort(400)
+
+    new_task = {
+        'id': tasks[-1]['id'] + 1 if tasks else 1,
+        'title': title,
+        'description': description,
+        'user_id': user_id,
+        'completed': completed
+    }
+
+    tasks.append(new_task)
+    return jsonify(new_task), 201
+
+# Update an existing task
+@app.route('/tasks/<int:task_id>', methods=['PUT'])
+def update_task(task_id):
+    task = next((t for t in tasks if t['id'] == task_id), None)
+    if task is None:
+        abort(404)
+
+    if not request.json:
+        abort(400)
+
+    # If user_id is provided in update, validate it points to an existing user
+    if 'user_id' in request.json:
+        new_user_id = request.json['user_id']
+        if not isinstance(new_user_id, int) or not any(u['id'] == new_user_id for u in users):
+            abort(400)
+
+    # Optional type checks for other fields if present
+    if 'title' in request.json and not isinstance(request.json['title'], str):
+        abort(400)
+    if 'description' in request.json and not isinstance(request.json['description'], str):
+        abort(400)
+    if 'completed' in request.json and not isinstance(request.json['completed'], bool):
+        abort(400)
+
+    # Apply updates (keep old values if not provided)
+    task['title'] = request.json.get('title', task['title'])
+    task['description'] = request.json.get('description', task['description'])
+    task['user_id'] = request.json.get('user_id', task['user_id'])
+    task['completed'] = request.json.get('completed', task['completed'])
+
+    return jsonify(task), 200
+
+    # Delete a task
+@app.route('/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    global tasks
+    exists = any(t['id'] == task_id for t in tasks)
+    if not exists:
+        abort(404)
+    tasks = [t for t in tasks if t['id'] != task_id]
+    return '', 204
+
+@app.route('/users/<int:user_id>/tasks', methods=['GET'])
+def get_tasks_for_user(user_id):
+    # Check user exists
+    user_exists = any(u['id'] == user_id for u in users)
+    if not user_exists:
+        abort(404)
+    # Filter tasks for this user
+    user_tasks = [t for t in tasks if t['user_id'] == user_id]
+    return jsonify(user_tasks), 200
 # Entry point for running the Flask app
 # The app will run on host 0.0.0.0 (accessible on all network interfaces) and port 8000.
 # Debug mode is disabled (set to False).
